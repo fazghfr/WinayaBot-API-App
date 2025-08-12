@@ -27,37 +27,58 @@ func InitTaskService(taskRepo *repository.TaskRepo, userRepo *repository.UserRep
 	return &TaskService{taskRepo: taskRepo, userRepo: userRepo}
 }
 
-func (t *TaskService) CreateTask(dto dto.TaskDTO) (*model.Task, error) {
+// Implement auto-register on non-existant case
+func (t *TaskService) initRegisterUser(dto dto.UserDTO) (*model.User, error) {
+	User := &model.User{
+		ID:         uuid.New().String(),
+		Discord_id: dto.DiscordID,
+	}
+	var err error
+	User, err = t.userRepo.CreateNewUser(User)
+	if err != nil {
+		return nil, err
+	}
+	return User, nil
+}
+
+// autoregister using a function within this file
+func (t *TaskService) CreateTask(dto_task dto.TaskDTO) (*model.Task, error) {
 	/*
 	 1. checking if user exists in database (precautionary ops)
 	 2. checking if title is not empty
 	 3. checking if status is not empty -> if it is, set it to a default value
 	 4. calling the repository function
 	*/
-	User, is_exist, err := t.userRepo.CheckUserByDiscordID(dto.DiscordID)
+	User, is_exist, err := t.userRepo.CheckUserByDiscordID(dto_task.DiscordID)
 	if err != nil {
 		return &model.Task{}, err
 	}
 	if !is_exist {
-		return &model.Task{}, errors.New("User does not exist. Please Register First")
+		userDTO := dto.UserDTO{
+			DiscordID: dto_task.DiscordID,
+		}
+		User, err = t.initRegisterUser(userDTO)
+		if err != nil {
+			return &model.Task{}, err
+		}
 	}
 
-	if dto.Title == "" {
+	if dto_task.Title == "" {
 		return &model.Task{}, errors.New("Title can not be empty!")
 	}
-	if dto.Status == "" {
-		dto.Status = "backlog"
+	if dto_task.Status == "" {
+		dto_task.Status = "backlog"
 	}
 
-	if !isValidStatus(dto.Status) {
+	if !isValidStatus(dto_task.Status) {
 		return &model.Task{}, errors.New("Invalid status. options : done, in progress, backlog")
 	}
 
 	// constructing the model
 	var Task = &model.Task{
 		ID:     uuid.New().String(),
-		Title:  dto.Title,
-		Status: dto.Status,
+		Title:  dto_task.Title,
+		Status: dto_task.Status,
 		UserID: User.ID,
 		User:   *User,
 	}
@@ -67,4 +88,57 @@ func (t *TaskService) CreateTask(dto dto.TaskDTO) (*model.Task, error) {
 	}
 
 	return Task, nil
+}
+
+func (t *TaskService) GetTasksByUser(discordID string, page, limit int) (*dto.PaginatedTasksDTO, error) {
+	// Check if user exists
+	user, exists, err := t.userRepo.CheckUserByDiscordID(discordID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.New("User not found")
+	}
+
+	// Calculate offset
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	// Get tasks from repository
+	tasks, err := t.taskRepo.GetTasksByUserID(user.ID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get total count
+	total, err := t.taskRepo.CountTasksByUserID(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to DTOs
+	taskDTOs := make([]dto.TaskResponseDTO, len(tasks))
+	for i, task := range tasks {
+		taskDTOs[i] = dto.TaskResponseDTO{
+			ID:     task.ID,
+			Title:  task.Title,
+			Status: task.Status,
+		}
+	}
+
+	// Calculate total pages
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+
+	return &dto.PaginatedTasksDTO{
+		Tasks:      taskDTOs,
+		Page:       page,
+		Limit:      limit,
+		Total:      total,
+		TotalPages: totalPages,
+	}, nil
 }

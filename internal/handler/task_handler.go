@@ -5,6 +5,7 @@ import (
 	"Discord_API_DB_v1/internal/service"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 )
 
 type TaskHandler struct {
@@ -33,4 +34,40 @@ func (t *TaskHandler) CreateNewTask(c *gin.Context) {
 	}
 
 	c.JSON(200, *Task)
+}
+
+func (t *TaskHandler) GetTasksByUser(c *gin.Context) {
+	// Get query parameters
+	discordID := c.Query("discord_id")
+	if discordID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "discord_id is required",
+		})
+		return
+	}
+
+	page := 1
+	if pageParam := c.Query("page"); pageParam != "" {
+		if p, err := strconv.Atoi(pageParam); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	limit := 10
+	if limitParam := c.Query("limit"); limitParam != "" {
+		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	// Get paginated tasks
+	paginatedTasks, err := t.s.GetTasksByUser(discordID, page, limit)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, paginatedTasks)
 }

@@ -30,6 +30,7 @@ func RegisterRoutes(r *HttpServer) {
 		Task := engine.Group("/api/task")
 		{
 			Task.POST("/create", TaskHandler.CreateNewTask)
+			Task.GET("/user", TaskHandler.GetTasksByUser)
 		}
 	}
 }
