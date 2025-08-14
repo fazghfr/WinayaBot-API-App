@@ -2,6 +2,7 @@ package repository
 
 import (
 	"Discord_API_DB_v1/internal/model"
+	"errors"
 	"gorm.io/gorm"
 )
 
@@ -38,4 +39,34 @@ func (r *TaskRepo) CountTasksByUserID(userID string) (int64, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+// only gets called by an authorized entity
+func (r *TaskRepo) IsTaskExistAndAuthorized(id string, userID string) (*model.Task, bool, error) {
+	var task model.Task
+	err := r.db.Where("id = ? AND user_id = ?", id, userID).First(&task).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, false, nil // Not found, but no DB error
+		}
+		return nil, false, err // Some other DB error
+	}
+
+	return &task, true, nil
+}
+
+// ONLY GETS CALLED FOR AN EXISTING MODEL. MAKE SURE TO CHECK TASK EXISTANCE. USING IsTaskExist function
+func (r *TaskRepo) EditTaskByID(existingTask *model.Task) (*model.Task, error) {
+	if err := r.db.Save(existingTask).Error; err != nil {
+		return nil, err
+	}
+	return existingTask, nil
+}
+
+func (r *TaskRepo) DeleteTaskByID(taskID string) error {
+	if err := r.db.Delete(&model.Task{}, "id = ?", taskID).Error; err != nil {
+		return err
+	}
+	return nil
 }

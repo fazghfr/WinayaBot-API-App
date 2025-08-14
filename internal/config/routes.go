@@ -31,6 +31,8 @@ func RegisterRoutes(r *HttpServer) {
 		{
 			Task.POST("/create", TaskHandler.CreateNewTask)
 			Task.GET("/user", TaskHandler.GetTasksByUser)
+			Task.PUT("/edit/:task_id", TaskHandler.EditTaskByTaskID)
+			Task.DELETE("/delete/:task_id", TaskHandler.DeleteTaskByID)
 		}
 	}
 }

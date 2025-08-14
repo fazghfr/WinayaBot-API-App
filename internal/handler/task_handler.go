@@ -25,7 +25,7 @@ func (t *TaskHandler) CreateNewTask(c *gin.Context) {
 		return
 	}
 
-	Task, err := t.s.CreateTask(taskDTO)
+	Task, err := t.s.CreateTask(&taskDTO)
 	if err != nil {
 		c.JSON(400, gin.H{
 			"error": err.Error(),
@@ -70,4 +70,63 @@ func (t *TaskHandler) GetTasksByUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, paginatedTasks)
+}
+
+func (t *TaskHandler) EditTaskByTaskID(c *gin.Context) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "task_id is required",
+		})
+		return
+	}
+
+	var taskDTO dto.TaskDTO
+	if err := c.ShouldBindJSON(&taskDTO); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request for task attributes",
+		})
+		return
+	}
+
+	Task, err := t.s.EditTaskByID(&taskDTO, taskID)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, *Task)
+}
+
+func (t *TaskHandler) DeleteTaskByID(c *gin.Context) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "task_id is required",
+		})
+		return
+	}
+
+	DiscordID := c.Query("discord_id")
+	if DiscordID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "discord_id is required",
+		})
+		return
+	}
+
+	flag, err := t.s.DeleteTaskByID(taskID, DiscordID)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": "delete operation completed",
+		"flag":    flag,
+	})
 }

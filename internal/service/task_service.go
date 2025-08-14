@@ -42,7 +42,7 @@ func (t *TaskService) initRegisterUser(dto dto.UserDTO) (*model.User, error) {
 }
 
 // autoregister using a function within this file
-func (t *TaskService) CreateTask(dto_task dto.TaskDTO) (*model.Task, error) {
+func (t *TaskService) CreateTask(dto_task *dto.TaskDTO) (*model.Task, error) {
 	/*
 	 1. checking if user exists in database (precautionary ops)
 	 2. checking if title is not empty
@@ -141,4 +141,68 @@ func (t *TaskService) GetTasksByUser(discordID string, page, limit int) (*dto.Pa
 		Total:      total,
 		TotalPages: totalPages,
 	}, nil
+}
+
+func (t *TaskService) EditTaskByID(taskDTO *dto.TaskDTO, taskID string) (*model.Task, error) {
+	// no need to validate dto, handled in task handler (if implemented)
+
+	// check if given id is in user's possession
+	User, exists, err := t.userRepo.CheckUserByDiscordID(taskDTO.DiscordID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.New("User not found")
+	}
+
+	var existingTask *model.Task
+	existingTask, exists, err = t.taskRepo.IsTaskExistAndAuthorized(taskID, User.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.New("Task does not exist for given user")
+	}
+
+	// only allow these two attributes to be changed
+	// if no title or status is set, then keep it as is
+	if taskDTO.Title != "" {
+		existingTask.Title = taskDTO.Title
+	}
+	if taskDTO.Status != "" {
+		existingTask.Status = taskDTO.Status
+	}
+
+	updatedTask, err := t.taskRepo.EditTaskByID(existingTask)
+	if err != nil {
+		return nil, err
+	}
+
+	return updatedTask, nil
+}
+
+func (t *TaskService) DeleteTaskByID(taskID string, DiscordID string) (bool, error) {
+	// check for auth
+	User, exists, err := t.userRepo.CheckUserByDiscordID(DiscordID)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, errors.New("User not found")
+	}
+
+	_, exists, err = t.taskRepo.IsTaskExistAndAuthorized(taskID, User.ID)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, errors.New("Task does not exist for given user")
+	}
+
+	// attempted deletion
+	err = t.taskRepo.DeleteTaskByID(taskID)
+	if err != nil {
+		return false, errors.New("Task Delete Failed")
+	}
+	return true, nil
 }
