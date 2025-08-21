@@ -22,7 +22,7 @@ func main() {
 
 	// HTTP  server and routes configuration
 	Server := config.NewHttpServer()
-	Server.SetPort(":8080")
+	Server.SetPort("0.0.0.0:8080")
 	config.RegisterRoutes(Server)
 
 	Server.Start()
